@@ -1,0 +1,12 @@
+# Variables de entorno con contraseñas — NUNCA al repositorio
+.env
+
+# Datos persistentes de Elasticsearch (si usas bind mount en lugar de volume)
+elasticsearch/data/
+
+# Logs locales
+*.log
+
+# Ficheros del sistema operativo
+.DS_Store
+Thumbs.db
