@@ -1,0 +1,33 @@
+# ======================== Filebeat Inputs ========================
+filebeat.inputs:
+  # 1. Logs de sistema tradicionales (Auth, Syslog, Nginx nativo, etc.)
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/syslog
+      - /var/log/auth.log
+      - /var/log/nginx/*.log # Si tuvieras un nginx nativo aquí
+
+  # 2. Logs de tus aplicaciones (Laravel, Node, PHP, etc.)
+  - type: log
+    enabled: true
+    paths:
+      - /var/www/mi-api/storage/logs/*.log
+
+# 3. Logs de los contenedores Docker de este servidor remoto
+  - type: container
+    enabled: true
+    paths:
+      - /var/lib/docker/containers/*/*.log
+
+# ============================== Outputs ==============================
+
+# OPCIÓN RECOMENDADA: Mandar a tu Logstash central
+output.logstash:
+  hosts: ["IP_DEL_SERVIDOR_ELK:5044"]
+
+# OPCIÓN ALTERNATIVA: Mandar directo a tu Elasticsearch central
+# output.elasticsearch:
+#   hosts: ["http://IP_DEL_SERVIDOR_ELK:9200"]
+#   username: "elastic" # Si activaste seguridad
+#   password: "MiPasswordSeguro123"
