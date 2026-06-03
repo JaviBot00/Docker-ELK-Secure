@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+
+  filebeat:
+      image: docker.elastic.co/beats/filebeat:8.12.2
+      container_name: filebeat
+      user: root # Necesario para leer los sockets y logs de Docker
+      volumes:
+        # Configuración de Filebeat
+        - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+        # Acceso a los logs de todos los contenedores de Docker
+        - /var/lib/docker/containers:/var/lib/docker/containers:ro
+        # Acceso al socket de Docker para leer metadatos (nombres de contenedor, etc.)
+        - /var/run/docker.sock:/var/run/docker.sock:ro
+      environment:
+        - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      # depends_on:
+      #   - elasticsearch
+      networks:
+        - elk-net
+
+networks:
+  elk-net:
+    driver: bridge
+    external: true
