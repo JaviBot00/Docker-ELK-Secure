@@ -49,6 +49,7 @@ services:
     environment:
       - LS_JAVA_OPTS=-Xms256m -Xmx256m
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - LOGSTASH_SYSTEM_PASSWORD=${LOGSTASH_SYSTEM_PASSWORD}
     depends_on:
       - elasticsearch
     networks:
