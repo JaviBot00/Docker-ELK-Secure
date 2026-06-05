@@ -84,12 +84,12 @@ Cualquier otra cosa               →  logstash-YYYY.MM.dd   (fallback)
 ### Tabla de enrutamiento completa
 
 | Condición en el log                        | Índice resultante              |
-|--------------------------------------------|--------------------------------|
-| `app_name` presente (cualquier valor)      | `apps-{app_name}-YYYY.MM.dd`  |
-| `log_category` = syslog, kernel, auth,     | `sistema-YYYY.MM.dd`          |
+|---|---|
+| `app_name` presente (cualquier valor)      | `apps-{app_name}-YYYY.MM.dd`   |
+| `log_category` = syslog, kernel, auth,     | `sistema-YYYY.MM.dd`           |
 | cron, paquetes, vmware, apache             |                                |
-| tag `docker` presente                      | `docker-YYYY.MM.dd`           |
-| Resto / sin clasificar                     | `logstash-YYYY.MM.dd`         |
+| tag `docker` presente                      | `docker-YYYY.MM.dd`            |
+| Resto / sin clasificar                     | `logstash-YYYY.MM.dd`          |
 
 ### Añadir un nuevo tipo de índice
 
@@ -135,12 +135,12 @@ Mar 15 10:23:41 servidor sudo: deploy : TTY=pts/0 ; PWD=/home ; USER=root ; COMM
 
 Campos resultantes en Elasticsearch:
 
-| Campo          | Ejemplo                  | Descripción                      |
-|----------------|--------------------------|----------------------------------|
+| Campo          | Ejemplo                  | Descripción                            |
+|---|---|---|
 | `ssh_user`     | `root`                   | Usuario con el que se intentó el login |
-| `src_ip`       | `192.168.1.50`           | IP origen del intento            |
-| `sudo_user`    | `deploy`                 | Usuario que ejecutó sudo         |
-| `sudo_command` | `/bin/systemctl restart` | Comando ejecutado con sudo       |
+| `src_ip`       | `192.168.1.50`           | IP origen del intento                  |
+| `sudo_user`    | `deploy`                 | Usuario que ejecutó sudo               |
+| `sudo_command` | `/bin/systemctl restart` | Comando ejecutado con sudo             |
 
 > Si el mensaje no encaja con ningún patrón, Logstash lo deja pasar sin
 > añadir campos extra (`tag_on_failure => []` suprime el tag `_grokparsefailure`).
@@ -157,7 +157,7 @@ Solo se aplica cuando `log_category == "apache"`.
 Campos resultantes:
 
 | Campo        | Ejemplo                          |
-|--------------|----------------------------------|
+|---|---|
 | `clientip`   | `192.168.1.1`                    |
 | `ident`      | `frank`                          |
 | `request`    | `GET /index.html HTTP/1.1`       |
@@ -179,7 +179,7 @@ Logstash analiza el texto de **todos** los mensajes (independientemente del orig
 y añade un campo `severity` según las palabras clave que encuentre:
 
 | Valor `severity` | Palabras clave detectadas (case-insensitive)          |
-|------------------|-------------------------------------------------------|
+|---|---|
 | `critical`       | critical, fatal, emergency                            |
 | `error`          | error, exception, traceback, failed, failure          |
 | `warning`        | warn, warning, deprecated                             |

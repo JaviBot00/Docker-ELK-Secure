@@ -2,7 +2,7 @@
 
 Entorno ELK (Elasticsearch, Logstash, Kibana) dockerizado con **licencia Basic gratuita e ilimitada**, seguridad habilitada y listo para producción. Diseñado para centralizar logs de múltiples servidores mediante agentes **Filebeat instalados en los clientes**.
 
-```
+```cmd
 ┌─────────────────────────────────────────────────────────────────┐
 │  Servidor Central (Docker)                                      │
 │                                                                 │
@@ -132,7 +132,7 @@ docker compose restart kibana
 ## 🌐 Acceso a los servicios
 
 | Servicio       | URL                        | Credenciales                      |
-|----------------|----------------------------|-----------------------------------|
+|---|---|---|
 | Kibana         | http://localhost:5601      | `elastic` / `${ELASTIC_PASSWORD}` |
 | Elasticsearch  | http://localhost:9200      | `elastic` / `${ELASTIC_PASSWORD}` |
 | Logstash Beats | tcp://localhost:5044       | (recibe de Filebeat, no es web)   |
@@ -270,7 +270,7 @@ Start-Service filebeat
 El pipeline de Logstash enruta cada log al índice correcto según los campos
 `app_name` y `log_category` que manda Filebeat:
 
-```
+```cmd
 app_name presente    →  apps-{app_name}-YYYY.MM.dd
 log_category=auth    →  sistema-YYYY.MM.dd
 tag docker           →  docker-YYYY.MM.dd

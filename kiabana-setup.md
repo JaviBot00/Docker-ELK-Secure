@@ -12,7 +12,7 @@ mezclando los dos sistemas. **Filebeat no necesita Fleet ni ninguna integración
 
 El flujo real es:
 
-```
+```cmd
 Filebeat (cliente)
     │  campos: server_name, environment, log_category, app_name, tags
     ▼  puerto 5044
@@ -40,7 +40,7 @@ curl -s -u elastic:${ELASTIC_PASSWORD} \
 
 Deberías ver algo así:
 
-```
+```cmd
 index                         docs.count   store.size
 apps-apitest-2024.03.15           1823         890kb
 apps-gitea-2024.03.15              412         210kb
@@ -60,17 +60,16 @@ Crea los siguientes (los que necesites según lo que uses):
 
 **Ruta:** Stack Management ⚙️ → Data Views → Create data view
 
-| Nombre sugerido   | Index pattern                          | Timestamp field  | Para qué                      |
-|-------------------|----------------------------------------|------------------|-------------------------------|
-| Todas las apps    | `apps-*`                               | `@timestamp`     | Ver todas las aplicaciones    |
-| Sistema           | `sistema-*`                            | `@timestamp`     | Auth, syslog, kernel, cron... |
+| Nombre sugerido   | Index pattern                          | Timestamp field  | Para qué                       |
+|---|---|---|---|
+| Todas las apps    | `apps-*`                               | `@timestamp`     | Ver todas las aplicaciones     |
+| Sistema           | `sistema-*`                            | `@timestamp`     | Auth, syslog, kernel, cron...  |
 | Docker            | `docker-*`                             | `@timestamp`     | Contenedores de todos los hosts|
-| Vista global      | `apps-*,sistema-*,docker-*,logstash-*` | `@timestamp`     | Todo a la vez                 |
-| Solo apitest      | `apps-apitest-*`                       | `@timestamp`     | Una sola aplicación           |
+| Vista global      | `apps-*,sistema-*,docker-*,logstash-*` | `@timestamp`     | Todo a la vez                  |
+| Solo apitest      | `apps-apitest-*`                       | `@timestamp`     | Una sola aplicación            |
 
 > Para la vista global, escribe el patrón con comas directamente en el campo
 > "Index pattern" — Kibana lo soporta de forma nativa.
-
 > Si `@timestamp` no aparece en el desplegable, es que aún no hay índices.
 > Vuelve al Paso 1.
 
@@ -88,24 +87,24 @@ Crea los siguientes (los que necesites según lo que uses):
 Estos son los campos que genera este stack. Aparecen en el panel izquierdo de Discover
 y puedes añadirlos como columnas en la tabla.
 
-| Campo              | Origen       | Qué contiene                                      |
-|--------------------|--------------|---------------------------------------------------|
-| `@timestamp`       | Filebeat     | Fecha y hora del log                              |
-| `message`          | Filebeat     | Contenido del log en texto                        |
-| `host.name`        | Filebeat     | Hostname del servidor cliente                     |
-| `server_name`      | filebeat.yml | Nombre personalizado del servidor (`fields:`)     |
-| `environment`      | filebeat.yml | production / staging / development                |
-| `location`         | filebeat.yml | Zona, datacenter, proveedor cloud                 |
-| `log_category`     | filebeat.yml | Tipo de log: auth, syslog, docker, apitest...     |
-| `app_name`         | filebeat.yml | Nombre de la app (solo bloques de aplicación)     |
-| `tags`             | filebeat.yml | Array de etiquetas: ["app","sentry-project"]      |
-| `severity`         | Logstash     | critical / error / warning / info (automático)    |
-| `log.file.path`    | Filebeat     | Ruta del fichero de log en el cliente             |
-| `input.type`       | Filebeat     | log / container                                   |
-| `container.name`   | Filebeat     | Nombre del contenedor Docker (solo tipo container)|
-| `container.image.name` | Filebeat | Imagen del contenedor Docker                    |
-| `src_ip`           | Logstash     | IP origen en logs de auth/SSH (si aplica grok)    |
-| `ssh_user`         | Logstash     | Usuario en intentos SSH (si aplica grok)          |
+| Campo                  | Origen       | Qué contiene                                      |
+|---|---|---|
+| `@timestamp`           | Filebeat     | Fecha y hora del log                              |
+| `message`              | Filebeat     | Contenido del log en texto                        |
+| `host.name`            | Filebeat     | Hostname del servidor cliente                     |
+| `server_name`          | filebeat.yml | Nombre personalizado del servidor (`fields:`)     |
+| `environment`          | filebeat.yml | production / staging / development                |
+| `location`             | filebeat.yml | Zona, datacenter, proveedor cloud                 |
+| `log_category`         | filebeat.yml | Tipo de log: auth, syslog, docker, apitest...     |
+| `app_name`             | filebeat.yml | Nombre de la app (solo bloques de aplicación)     |
+| `tags`                 | filebeat.yml | Array de etiquetas: ["app","sentry-project"]      |
+| `severity`             | Logstash     | critical / error / warning / info (automático)    |
+| `log.file.path`        | Filebeat     | Ruta del fichero de log en el cliente             |
+| `input.type`           | Filebeat     | log / container                                   |
+| `container.name`       | Filebeat     | Nombre del contenedor Docker (solo tipo container)|
+| `container.image.name` | Filebeat     | Imagen del contenedor Docker                      |
+| `src_ip`               | Logstash     | IP origen en logs de auth/SSH (si aplica grok)    |
+| `ssh_user`             | Logstash     | Usuario en intentos SSH (si aplica grok)          |
 
 ---
 
@@ -262,8 +261,8 @@ de documentos de un servidor cae a 0 durante X minutos, algo va mal
 
 ## Referencia rápida de rutas en Kibana
 
-| Qué hacer                    | Ruta en Kibana                                          |
-|------------------------------|----------------------------------------------------------|
+| Qué hacer                     | Ruta en Kibana                                           |
+|---|---|
 | Ver logs en tiempo real       | Discover → selecciona Data View → ajusta tiempo          |
 | Crear/gestionar Data Views    | Stack Management → Data Views                            |
 | Ver y crear dashboards        | Dashboard                                                |
