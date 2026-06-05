@@ -2,26 +2,27 @@
 
 Entorno ELK (Elasticsearch, Logstash, Kibana) dockerizado con **licencia Basic gratuita e ilimitada**, seguridad habilitada y listo para producción. Diseñado para centralizar logs de múltiples servidores mediante agentes **Filebeat instalados en los clientes**.
 
-```cmd
-┌──────────────────────────────────────────────────────────┐
-│  Servidor Central (Docker)                               │
-│  ┌─────────────┐   ┌──────────────┐   ┌───────────────┐  │
-│  │Elasticsearch│◄──│   Logstash   │◄──│   :5044       │  │
-│  │   :9200     │   │  :5044/:50000│   │  (Beats input)│  │
-│  └──────┬──────┘   └──────────────┘   └───────────────┘  │
-│         │                                                │
-│  ┌──────▼──────┐                                         │
-│  │   Kibana    │                                         │
-│  │   :5601     │                                         │
-│  └─────────────┘                                         │
-└──────────────────────────────────────────────────────────┘
-         ▲                ▲                ▲
-         │                │                │
-┌────────┴──┐   ┌─────────┴──┐   ┌─────────┴──┐
-│ Servidor A│   │ Servidor B │   │ Servidor C │
-│ Filebeat  │   │  Filebeat  │   │  Filebeat  │
-│ (paquete) │   │  (paquete) │   │  (paquete) │
-└───────────┘   └────────────┘   └────────────┘
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Servidor Central (Docker)                                      │
+│                                                                 │
+│  ┌───────────────┐     ┌──────────────────┐   ┌─────────────┐   │
+│  │ Elasticsearch │◄────│    Logstash      │◄──│  :5044      │   │
+│  │    :9200      │     │  :5044 / :50000  │   │  (Beats)    │   │
+│  └───────┬───────┘     └──────────────────┘   └─────────────┘   │
+│          │              Enruta a índices:                       │
+│  ┌───────▼───────┐       apps-{nombre}-*                        │
+│  │    Kibana     │       sistema-*                              │
+│  │    :5601      │       docker-*                               │
+│  └───────────────┘                                              │
+└─────────────────────────────────────────────────────────────────┘
+          ▲                  ▲                  ▲
+          │                  │                  │
+┌─────────┴───┐   ┌──────────┴───┐   ┌──────────┴───┐
+│  Servidor A │   │  Servidor B  │   │  Servidor C  │
+│  Filebeat   │   │   Filebeat   │   │   Filebeat   │
+│  (paquete)  │   │   (paquete)  │   │   (paquete)  │
+└─────────────┘   └──────────────┘   └──────────────┘
 ```
 
 ---
@@ -38,11 +39,12 @@ Entorno ELK (Elasticsearch, Logstash, Kibana) dockerizado con **licencia Basic g
 
 ### 1. Variables de entorno (seguridad)
 
-Copia el fichero de ejemplo y edita las contraseñas **antes** de lanzar los contenedores. El fichero `.env` está excluido del repositorio por `.gitignore`.
+Copia el fichero de ejemplo y edita las contraseñas **antes** de lanzar los contenedores.
+El fichero `.env` está excluido del repositorio por `.gitignore`.
 
 ```bash
 cp .env.example .env
-nano .env   # o el editor que prefieras
+nano .env
 ```
 
 Contenido de `.env` a rellenar:
@@ -55,7 +57,7 @@ LOGSTASH_SYSTEM_PASSWORD=YOtraPasswordMas!
 
 > ⚠️ **Nunca** uses contraseñas por defecto en producción ni hagas commit del `.env` con valores reales.
 
-### 2. Parámetro del kernel (Linux/macOS)
+### 2. Parámetro del kernel (Linux)
 
 Elasticsearch requiere un límite alto de mapas de memoria virtual. Sin esto, el contenedor crashea al arrancar.
 
@@ -94,23 +96,32 @@ docker compose logs -f
 curl -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health?pretty
 ```
 
-Deberías ver `"status": "green"` o `"yellow"` (yellow es normal en single-node).
+Deberías ver `"status": "green"` o `"yellow"` — yellow es normal en instalaciones single-node.
 
 ---
 
 ## 🔑 Configurar la contraseña del usuario `kibana_system`
 
-Este paso es necesario **una sola vez** tras el primer arranque, antes de que Kibana pueda conectarse a Elasticsearch.
+Este paso es necesario **una sola vez** tras el primer arranque. Ni Kibana ni Logstash pueden conectarse
+a Elasticsearch hasta que se ejecute.
 
 ```bash
-# Espera a que Elasticsearch esté listo (puede tardar 30-60 segundos)
+# Espera 30-60 segundos a que Elasticsearch esté listo, luego:
 curl -u elastic:${ELASTIC_PASSWORD} \
   -X POST http://localhost:9200/_security/user/kibana_system/_password \
   -H "Content-Type: application/json" \
   -d '{"password": "'"${KIBANA_SYSTEM_PASSWORD}"'"}'
 ```
 
-Si ves `{}` como respuesta, el usuario se ha actualizado correctamente. Después puedes reiniciar Kibana:
+```bash
+# Espera 30-60 segundos a que Elasticsearch esté listo, luego:
+curl -u elastic:${ELASTIC_PASSWORD} \
+  -X POST http://localhost:9200/_security/user/logstash_system/_password \
+  -H "Content-Type: application/json" \
+  -d '{"password": "'"${LOGSTASH_SYSTEM_PASSWORD}"'"}'
+```
+
+Si la respuesta es `{}` el usuario se ha actualizado correctamente. Reinicia Kibana:
 
 ```bash
 docker compose restart kibana
@@ -120,98 +131,12 @@ docker compose restart kibana
 
 ## 🌐 Acceso a los servicios
 
-| Servicio       | URL                        | Credenciales                        |
-|----------------|----------------------------|-------------------------------------|
-| Kibana         | http://localhost:5601      | `elastic` / `${ELASTIC_PASSWORD}`   |
-| Elasticsearch  | http://localhost:9200      | `elastic` / `${ELASTIC_PASSWORD}`   |
-| Logstash Beats | http://localhost:5044      | (recibe de Filebeat, no es web)     |
-| Logstash TCP   | tcp://localhost:50000      | (input TCP genérico)                |
-
----
-
-## 📡 Instalación de Filebeat en clientes (Linux/Debian/Ubuntu)
-
-Ejecuta los siguientes pasos **en cada servidor cliente** que quieras monitorizar.
-
-### 1. Instalar Filebeat
-
-```bash
-# Importar la clave GPG de Elastic
-wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch \
-  | sudo gpg --dearmor -o /etc/apt/keyrings/elastic-keyring.gpg
-
-# Añadir el repositorio (versión 8.x, igual que el stack Docker)
-echo "deb [signed-by=/etc/apt/keyrings/elastic-keyring.gpg] \
-  https://artifacts.elastic.co/packages/8.x/apt stable main" \
-  | sudo tee -a /etc/apt/sources.list.d/elastic-8.x.list
-
-# Instalar
-sudo apt-get update && sudo apt-get install -y filebeat
-```
-
-### 2. Configurar Filebeat
-
-Copia la configuración de ejemplo del repositorio y edita la IP del servidor ELK:
-
-```bash
-# Desde el servidor donde clonaste el repo
-sudo cp ./filebeat/filebeat.yml /etc/filebeat/filebeat.yml
-
-# Editar la IP del servidor central
-sudo nano /etc/filebeat/filebeat.yml
-```
-
-Busca la línea `hosts: ["IP_DEL_SERVIDOR_ELK:5044"]` y sustitúyela por la IP real de tu servidor ELK.
-
-**Identificar cada cliente con un nombre único** (muy recomendado cuando hay múltiples servidores):
-
-```yaml
-# Añadir al final del filebeat.yml en cada cliente
-fields:
-  server_name: "web-produccion-01"   # cambia por el nombre de este servidor
-  environment: "production"           # production / staging / development
-fields_under_root: true
-```
-
-### 3. Arrancar y habilitar el servicio
-
-```bash
-# Iniciar Filebeat
-sudo systemctl start filebeat
-sudo systemctl enable filebeat
-
-# Comprobar que está corriendo y sin errores
-sudo systemctl status filebeat
-sudo journalctl -u filebeat -f
-```
-
-### 4. Verificar que llegan datos a Kibana
-
-En Kibana ve a **Management → Stack Management → Index Management** y busca índices `logstash-*`. Si aparecen, los logs están llegando correctamente.
-
----
-
-## 🪟 Instalación de Filebeat en clientes Windows (PowerShell)
-
-```powershell
-# Descargar Filebeat para Windows
-Invoke-WebRequest -Uri "https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-8.12.2-windows-x86_64.zip" `
-  -OutFile "filebeat.zip"
-
-# Descomprimir
-Expand-Archive -Path "filebeat.zip" -DestinationPath "C:\Program Files\"
-Rename-Item "C:\Program Files\filebeat-8.12.2-windows-x86_64" "C:\Program Files\Filebeat"
-
-# Copiar configuración
-Copy-Item "filebeat.yml" "C:\Program Files\Filebeat\filebeat.yml"
-
-# Instalar como servicio de Windows
-cd "C:\Program Files\Filebeat"
-.\install-service-filebeat.ps1
-
-# Arrancar el servicio
-Start-Service filebeat
-```
+| Servicio       | URL                        | Credenciales                      |
+|----------------|----------------------------|-----------------------------------|
+| Kibana         | http://localhost:5601      | `elastic` / `${ELASTIC_PASSWORD}` |
+| Elasticsearch  | http://localhost:9200      | `elastic` / `${ELASTIC_PASSWORD}` |
+| Logstash Beats | tcp://localhost:5044       | (recibe de Filebeat, no es web)   |
+| Logstash TCP   | tcp://localhost:50000      | (input TCP genérico con JSON)     |
 
 ---
 
@@ -220,23 +145,143 @@ Start-Service filebeat
 ```cmd
 docker-elk-secure/
 │
-├── docker-compose.yml              # Stack ELK principal (Elastic + Kibana + Logstash)
+├── docker-compose.yml              # Stack ELK principal
 ├── docker-compose-opensource.yml   # Alternativa con OpenSearch
-├── docker-compose-filebeat.yml     # Filebeat como contenedor (opcional, para el propio host)
+├── docker-compose-filebeat.yml     # Filebeat como contenedor (para el propio host)
 ├── .env.example                    # Plantilla de variables de entorno
-├── .gitignore                      # Excluye .env y otros ficheros sensibles
+├── .gitignore                      # Excluye .env y datos sensibles
 │
 ├── logstash/
 │   ├── config/
 │   │   └── logstash.yml            # Configuración general de Logstash
 │   └── pipeline/
-│       └── logstash.conf           # Pipeline: recibe de Beats → envía a Elasticsearch
+│       └── logstash.conf           # Pipeline: enruta logs a índices por tipo/app
 │
 ├── filebeat/
-│   └── filebeat.yml                # Config de Filebeat para instalar en clientes
+│   └── filebeat.yml                # Config base de Filebeat para clientes
 │
-└── README.md
+└── docs/
+    ├── KIBANA-SETUP.md             # Configuración de Kibana, Data Views y Dashboards
+    └── LOGSTASH.md                 # Pipeline, enrutamiento de índices y parseo
 ```
+
+---
+
+## 📡 Instalación de Filebeat en clientes (Linux/Debian/Ubuntu)
+
+### 1. Instalar Filebeat
+
+```bash
+# Importar la clave GPG de Elastic
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch \
+  | sudo gpg --dearmor -o /usr/share/keyrings/elastic-keyring.gpg
+
+# Añadir el repositorio (versión 8.x — debe coincidir con el stack Docker)
+echo "deb [signed-by=/usr/share/keyrings/elastic-keyring.gpg] \
+  https://artifacts.elastic.co/packages/8.x/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/elastic-8.x.list
+
+# Instalar
+sudo apt-get update && sudo apt-get install -y filebeat
+```
+
+### 2. Configurar Filebeat
+
+```bash
+# Copiar la configuración del repositorio
+sudo cp ./filebeat/filebeat.yml /etc/filebeat/filebeat.yml
+sudo nano /etc/filebeat/filebeat.yml
+```
+
+Los campos obligatorios a editar en cada cliente:
+
+```yaml
+fields:
+  server_name: "nombre-de-este-servidor"   # identificador único del cliente
+  environment: "production"                # production | staging | development
+  location: "datacenter-mad"              # opcional: zona, rack, proveedor
+
+output.logstash:
+  hosts: ["IP_DEL_SERVIDOR_ELK:5044"]     # IP real del servidor ELK
+```
+
+### 3. Activar los bloques de logs que apliquen
+
+Cada tipo de log tiene su propio bloque en `filebeat.yml` con `enabled: true/false`.
+Activa solo los que existan en ese servidor:
+
+```yaml
+# Ejemplo: activar nginx y mysql, dejar apache desactivado
+- type: log
+  enabled: true    # ← nginx activo
+  paths:
+    - /var/log/nginx/*.log
+  tags: ["nginx", "web"]
+  fields:
+    log_category: "nginx"
+
+- type: log
+  enabled: false   # ← apache inactivo en este servidor
+  ...
+```
+
+### 4. Validar y arrancar
+
+```bash
+# Validar la configuración antes de arrancar
+sudo filebeat test config -e
+sudo filebeat test output -e
+
+# Arrancar y habilitar en el inicio del sistema
+sudo systemctl start filebeat
+sudo systemctl enable filebeat
+
+# Verificar que funciona
+sudo systemctl status filebeat
+sudo journalctl -u filebeat -f
+```
+
+---
+
+## 🪟 Instalación de Filebeat en clientes Windows (PowerShell)
+
+```powershell
+# Descargar Filebeat
+Invoke-WebRequest -Uri "https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-8.12.2-windows-x86_64.zip" `
+  -OutFile "filebeat.zip"
+
+# Descomprimir e instalar
+Expand-Archive -Path "filebeat.zip" -DestinationPath "C:\Program Files\"
+Rename-Item "C:\Program Files\filebeat-8.12.2-windows-x86_64" "C:\Program Files\Filebeat"
+
+# Copiar configuración
+Copy-Item "filebeat.yml" "C:\Program Files\Filebeat\filebeat.yml"
+
+# Instalar como servicio de Windows y arrancar
+cd "C:\Program Files\Filebeat"
+.\install-service-filebeat.ps1
+Start-Service filebeat
+```
+
+---
+
+## 🗃️ Estrategia de índices y pipeline de Logstash
+
+El pipeline de Logstash enruta cada log al índice correcto según los campos
+`app_name` y `log_category` que manda Filebeat:
+
+```
+app_name presente    →  apps-{app_name}-YYYY.MM.dd
+log_category=auth    →  sistema-YYYY.MM.dd
+tag docker           →  docker-YYYY.MM.dd
+resto                →  logstash-YYYY.MM.dd
+```
+
+Logstash también añade un campo `severity` automático (`critical` / `error` / `warning` / `info`)
+analizando el texto de cada mensaje.
+
+> Para la documentación completa del pipeline, parseo grok, enrutamiento y troubleshooting
+> de Logstash consulta **[LOGSTASH.md](./docs/LOGSTASH.md)**.
 
 ---
 
@@ -246,40 +291,37 @@ docker-elk-secure/
 # Ver estado de los contenedores
 docker compose ps
 
-# Ver logs en tiempo real
+# Ver logs en tiempo real (todos o uno solo)
 docker compose logs -f
-docker compose logs -f elasticsearch   # solo un servicio
+docker compose logs -f logstash
 
 # Reiniciar un servicio concreto
 docker compose restart kibana
 
-# Parar el stack (mantiene los datos)
+# Parar el stack manteniendo los datos
 docker compose down
 
-# Parar el stack y BORRAR los datos (volúmenes)
+# Parar el stack y BORRAR todos los datos
 docker compose down -v
 
-# Actualizar imágenes
-docker compose pull
-docker compose up -d
+# Actualizar imágenes a la última versión
+docker compose pull && docker compose up -d
 ```
 
 ---
 
 ## 🗃️ Gestión del ciclo de vida de los índices (ILM)
 
-Sin una política de retención, Elasticsearch llenará el disco con el tiempo. Se recomienda configurar una política ILM (Index Lifecycle Management) desde Kibana:
+Sin política de retención el disco se llenará con el tiempo. Aplica una política ILM
+que borre índices antiguos automáticamente.
 
-1. Ve a **Stack Management → Index Lifecycle Policies → Create Policy**
-2. Configura una fase de borrado automático, por ejemplo:
-   - **Hot**: 7 días (índices activos)
-   - **Delete**: borrar después de 30 días
+Desde Kibana: **Stack Management → Index Lifecycle Policies → Create Policy**
 
-O vía API:
+O vía API (borra índices con más de 30 días):
 
 ```bash
 curl -u elastic:${ELASTIC_PASSWORD} \
-  -X PUT http://localhost:9200/_ilm/policy/logstash-cleanup \
+  -X PUT http://localhost:9200/_ilm/policy/elk-cleanup \
   -H "Content-Type: application/json" \
   -d '{
     "policy": {
@@ -293,16 +335,29 @@ curl -u elastic:${ELASTIC_PASSWORD} \
   }'
 ```
 
+Aplica la política a todos los índices del stack:
+
+```bash
+# Para apps-*
+curl -u elastic:${ELASTIC_PASSWORD} \
+  -X PUT http://localhost:9200/apps-*/_settings \
+  -H "Content-Type: application/json" \
+  -d '{"index.lifecycle.name": "elk-cleanup"}'
+
+# Para sistema-* y docker-*
+curl -u elastic:${ELASTIC_PASSWORD} \
+  -X PUT http://localhost:9200/sistema-*,docker-*/_settings \
+  -H "Content-Type: application/json" \
+  -d '{"index.lifecycle.name": "elk-cleanup"}'
+```
+
 ---
 
 ## 🛠️ Solución de problemas frecuentes
 
 ### Elasticsearch no arranca / exit code 137
 
-Síntoma: el contenedor muere nada más arrancar.
-
 ```bash
-# Ver la causa exacta
 docker compose logs elasticsearch | tail -30
 ```
 
@@ -310,43 +365,56 @@ Causa más común: `vm.max_map_count` demasiado bajo. Aplica el `sysctl` del pas
 
 ### Kibana muestra "Kibana server is not ready yet"
 
-Espera 60-90 segundos después del `docker compose up`. Si persiste:
+Espera 60-90 segundos. Si persiste, lo más habitual es que la contraseña de `kibana_system`
+no se haya actualizado:
 
 ```bash
 docker compose logs kibana | grep -i error
 ```
 
-Lo más habitual es que la contraseña de `kibana_system` no se haya actualizado. Repite el paso de configuración de contraseñas.
+Repite el paso de configuración de contraseñas y reinicia Kibana.
 
-### Filebeat conecta pero no llegan datos
+### Logstash no conecta a Elasticsearch
 
-```bash
-# En el cliente, ver logs de Filebeat en detalle
-sudo filebeat -e -d "*"
-
-# Comprobar conectividad al puerto Logstash
-nc -zv IP_DEL_SERVIDOR_ELK 5044
-```
-
-Causas comunes: firewall bloqueando el puerto 5044, IP incorrecta en la configuración, o ruta de logs inexistente.
-
-### Logstash no se conecta a Elasticsearch
-
-Si Logstash levanta antes de que Elasticsearch esté completamente listo, puede fallar. Solucion:
+Logstash puede arrancar antes de que ES esté listo. Solución:
 
 ```bash
 docker compose restart logstash
 ```
 
+### Filebeat conecta pero no llegan datos / no se crean índices
+
+```bash
+# En el servidor cliente
+sudo filebeat test config -e        # verifica sintaxis del fichero
+sudo filebeat test output -e        # verifica conectividad con Logstash
+sudo journalctl -u filebeat -f      # ver logs del agente en tiempo real
+
+# Comprobar que el puerto es accesible
+nc -zv IP_DEL_SERVIDOR_ELK 5044
+```
+
+### Los índices no se crean con el nombre esperado (apps-*, sistema-*)
+
+Verifica que Logstash tiene acceso a la variable `ELASTIC_PASSWORD`:
+
+```bash
+docker compose logs logstash | grep -i "error\|password\|connection"
+```
+
+Si ves errores de autenticación, asegúrate de que en `docker-compose.yml` el servicio
+`logstash` tiene `ELASTIC_PASSWORD=${ELASTIC_PASSWORD}` en su sección `environment`.
+
 ---
 
 ## 🔒 Consideraciones de seguridad para producción
 
-- Usa siempre contraseñas fuertes en `.env` y nunca las commitees al repositorio.
-- Considera habilitar TLS entre Filebeat y Logstash (puerto 5044 con certificados).
-- Restringe el acceso a los puertos 9200, 5601 y 5044 mediante firewall (`ufw` o reglas de red) solo a IPs conocidas.
-- Crea usuarios de Elasticsearch con roles mínimos para Logstash y Kibana (no usar el usuario `elastic` para todo).
-- Revisa periódicamente los índices y aplica ILM para evitar que el disco se llene.
+- Usa contraseñas fuertes en `.env` y nunca las commitees al repositorio.
+- Habilita TLS entre Filebeat y Logstash (puerto 5044 con certificados mutuos).
+- Restringe los puertos 9200, 5601 y 5044 con firewall — solo IPs conocidas.
+- Crea usuarios de Elasticsearch con roles mínimos para Logstash y Kibana
+  en lugar de usar el superusuario `elastic` para todo.
+- Aplica ILM para evitar que el disco se llene con índices antiguos.
 
 ---
 
@@ -358,13 +426,15 @@ Si prefieres una alternativa 100% open source sin dependencia de Elastic:
 docker compose -f docker-compose-opensource.yml up -d
 ```
 
-Incluye OpenSearch + OpenSearch Dashboards. Compatibilidad con Filebeat mediante el output de Logstash/Elasticsearch estándar.
+Incluye OpenSearch + OpenSearch Dashboards. Compatible con Filebeat mediante
+el output de Logstash/Elasticsearch estándar.
 
 ---
 
 ## 📚 Referencias
 
 - [Documentación oficial de Elasticsearch 8.x](https://www.elastic.co/guide/en/elasticsearch/reference/8.12/index.html)
-- [Filebeat: inputs y configuración](https://www.elastic.co/guide/en/beats/filebeat/8.12/filebeat-input-log.html)
+- [Filebeat: referencia de inputs](https://www.elastic.co/guide/en/beats/filebeat/8.12/filebeat-input-log.html)
+- [Logstash: filtros y outputs](https://www.elastic.co/guide/en/logstash/8.12/index.html)
 - [Index Lifecycle Management](https://www.elastic.co/guide/en/elasticsearch/reference/8.12/index-lifecycle-management.html)
 - [Elastic Basic License](https://www.elastic.co/subscriptions)
