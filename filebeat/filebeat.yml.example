@@ -1,0 +1,261 @@
+# ================================================================
+# filebeat.yml — Configuración para clientes
+# ================================================================
+# INSTRUCCIONES:
+#   1. Edita SERVER_NAME y ENVIRONMENT con los valores de este host
+#   2. Edita la IP del servidor ELK en output.logstash
+#   3. Activa/desactiva bloques con enabled: true/false según lo que
+#      tenga instalado este servidor
+#   4. Copia a /etc/filebeat/filebeat.yml
+#   5. sudo systemctl restart filebeat
+# ================================================================
+
+
+# ----------------------------------------------------------------
+# IDENTIDAD DEL SERVIDOR
+# Estos campos aparecerán en TODOS los logs de esta máquina.
+# Permiten filtrar en Kibana por servidor, entorno, etc.
+# ----------------------------------------------------------------
+fields:
+  server_name: "NOMBRE-DEL-SERVIDOR"      # ej: web-prod-01, db-staging-02
+  environment: "production"               # production | staging | development
+  location: "datacenter-mad"             # opcional: rack, zona, proveedor cloud
+fields_under_root: true                  # los campos van al nivel raíz del documento
+
+
+# ================================================================
+# INPUTS — Bloques de logs
+# Cada bloque tiene:
+#   enabled: true/false  → manda o no manda este bloque
+#   tags: [...]          → etiquetas para filtrar en Kibana
+#   fields: {...}        → metadatos extra solo para este bloque
+# ================================================================
+filebeat.inputs:
+
+  # --------------------------------------------------------------
+  # SISTEMA — Syslog y mensajes del kernel
+  # --------------------------------------------------------------
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/syslog
+      - /var/log/messages          # RedHat/CentOS
+      - /var/log/kern.log
+    tags: ["sistema", "syslog"]
+    fields:
+      log_category: "sistema"
+    multiline:                     # Une líneas de stack traces
+      pattern: '^\d{4}-\d{2}-\d{2}'
+      negate: true
+      match: after
+
+  # --------------------------------------------------------------
+  # AUTENTICACIÓN — SSH, sudo, PAM, logins
+  # Crítico para detectar accesos no autorizados
+  # --------------------------------------------------------------
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/auth.log
+      - /var/log/secure            # RedHat/CentOS
+    tags: ["auth", "seguridad"]
+    fields:
+      log_category: "auth"
+
+  # --------------------------------------------------------------
+  # NGINX — Access y error logs
+  # --------------------------------------------------------------
+  - type: log
+    enabled: false                 # ← activa si tienes Nginx nativo
+    paths:
+      - /var/log/nginx/access.log
+      - /var/log/nginx/error.log
+      - /var/log/nginx/*access*.log
+      - /var/log/nginx/*error*.log
+    tags: ["nginx", "web"]
+    fields:
+      log_category: "nginx"
+      servicio: "nginx"
+
+  # --------------------------------------------------------------
+  # APACHE — Access y error logs
+  # --------------------------------------------------------------
+  - type: log
+    enabled: false                 # ← activa si tienes Apache nativo
+    paths:
+      - /var/log/apache2/access.log
+      - /var/log/apache2/error.log
+      - /var/log/httpd/access_log  # RedHat/CentOS
+      - /var/log/httpd/error_log
+    tags: ["apache", "web"]
+    fields:
+      log_category: "apache"
+      servicio: "apache"
+
+  # --------------------------------------------------------------
+  # APLICACIÓN — Laravel / PHP
+  # --------------------------------------------------------------
+  - type: log
+    enabled: false                 # ← activa si tienes Laravel
+    paths:
+      - /var/www/*/storage/logs/*.log
+      - /var/www/*/storage/logs/laravel*.log
+    tags: ["app", "laravel", "php"]
+    fields:
+      log_category: "aplicacion"
+      stack: "laravel"
+    multiline:                     # Los stack traces de PHP son multilínea
+      pattern: '^\[\d{4}-\d{2}-\d{2}'
+      negate: true
+      match: after
+
+  # --------------------------------------------------------------
+  # APLICACIÓN — Node.js / Express
+  # --------------------------------------------------------------
+  - type: log
+    enabled: false                 # ← activa si tienes Node.js
+    paths:
+      - /var/www/*/logs/*.log
+      - /home/*/app/logs/*.log
+      - /opt/*/logs/*.log
+    tags: ["app", "nodejs"]
+    fields:
+      log_category: "aplicacion"
+      stack: "nodejs"
+    multiline:
+      pattern: '^\d{4}-\d{2}-\d{2}T'
+      negate: true
+      match: after
+
+  # --------------------------------------------------------------
+  # APLICACIÓN — Python / Django / FastAPI
+  # --------------------------------------------------------------
+  - type: log
+    enabled: false                 # ← activa si tienes Python
+    paths:
+      - /var/log/python/*.log
+      - /var/www/*/logs/*.log
+      - /opt/*/logs/*.log
+    tags: ["app", "python"]
+    fields:
+      log_category: "aplicacion"
+      stack: "python"
+    multiline:
+      pattern: '^Traceback|^\s+'   # Traceback de Python es multilínea
+      negate: false
+      match: after
+
+  # --------------------------------------------------------------
+  # BASE DE DATOS — MySQL / MariaDB
+  # --------------------------------------------------------------
+  - type: log
+    enabled: false                 # ← activa si tienes MySQL/MariaDB
+    paths:
+      - /var/log/mysql/error.log
+      - /var/log/mysql/*.log
+      - /var/log/mariadb/*.log
+    tags: ["bbdd", "mysql"]
+    fields:
+      log_category: "bbdd"
+      servicio: "mysql"
+
+  # --------------------------------------------------------------
+  # BASE DE DATOS — PostgreSQL
+  # --------------------------------------------------------------
+  - type: log
+    enabled: false                 # ← activa si tienes PostgreSQL
+    paths:
+      - /var/log/postgresql/*.log
+    tags: ["bbdd", "postgresql"]
+    fields:
+      log_category: "bbdd"
+      servicio: "postgresql"
+    multiline:
+      pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}'
+      negate: true
+      match: after
+
+  # --------------------------------------------------------------
+  # CONTENEDORES DOCKER — todos los contenedores de este host
+  # El campo container.name identifica cada contenedor en Kibana
+  # --------------------------------------------------------------
+  - type: container
+    enabled: true
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    tags: ["docker", "contenedor"]
+    fields:
+      log_category: "docker"
+    processors:
+      - add_docker_metadata:        # Añade nombre, imagen, labels del contenedor
+          host: "unix:///var/run/docker.sock"
+
+  # --------------------------------------------------------------
+  # CRON — Trabajos programados
+  # --------------------------------------------------------------
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/cron
+      - /var/log/cron.log
+    tags: ["cron", "sistema"]
+    fields:
+      log_category: "cron"
+
+  # --------------------------------------------------------------
+  # UFW / FIREWALL — Logs del firewall
+  # Útil para detectar escaneos de puertos o intentos de acceso
+  # --------------------------------------------------------------
+  - type: log
+    enabled: false                 # ← activa si quieres monitorizar el firewall
+    paths:
+      - /var/log/ufw.log
+    tags: ["firewall", "seguridad", "ufw"]
+    fields:
+      log_category: "firewall"
+
+
+# ================================================================
+# PROCESADORES GLOBALES
+# Se aplican a TODOS los logs antes de enviarlos
+# ================================================================
+processors:
+  - add_host_metadata:             # Añade IP, hostname, OS del servidor
+      when.not.contains.tags: forwarded
+  - add_locale:                    # Añade la timezone del servidor
+  - drop_fields:                   # Elimina campos innecesarios para ahorrar espacio
+      fields: ["agent.ephemeral_id", "ecs.version"]
+      ignore_missing: true
+
+
+# ================================================================
+# OUTPUT — Dónde se envían los logs
+# Solo puede haber UN output activo a la vez
+# ================================================================
+
+# OPCIÓN A (recomendada): Enviar a Logstash
+# Logstash parsea, enriquece y reenvía a Elasticsearch
+output.logstash:
+  hosts: ["IP_DEL_SERVIDOR_ELK:5044"]
+  # compression_level: 3           # opcional: comprime el tráfico
+
+# OPCIÓN B: Enviar directo a Elasticsearch (sin Logstash)
+# Descomenta esto y comenta el output.logstash de arriba
+# output.elasticsearch:
+#   hosts: ["http://IP_DEL_SERVIDOR_ELK:9200"]
+#   username: "elastic"
+#   password: "${ELASTIC_PASSWORD}"
+#   index: "filebeat-%{+YYYY.MM.dd}"
+
+
+# ================================================================
+# LOGGING DE FILEBEAT
+# Logs del propio agente Filebeat (para depuración)
+# ================================================================
+logging.level: warning             # debug | info | warning | error
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat.log
+  keepfiles: 7
+  permissions: 0644
