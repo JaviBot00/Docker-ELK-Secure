@@ -291,10 +291,66 @@ filebeat.inputs:
     id: sistema-vmware
     enabled: true
     paths:
-      - /var/log/vmware*.log
+      - /var/log/vmware-network*.log
+      - /var/log/vmware-vmsvc-root*.log
+      - /var/log/vmware-vmtoolsd-root*.log
     tags: ["sistema", "vmware"]
     fields:
       log_category: "vmware"
+    fields_under_root: true
+
+  # --------------------------------------------------------------
+  # FAIL2BAN
+  # --------------------------------------------------------------
+  - type: filestream
+    id: sistema-fail2ban
+    enabled: true
+    paths:
+      - /var/log/fail2ban.log
+    tags: ["sistema", "seguridad", "fail2ban"]
+    fields:
+      log_category: "fail2ban"
+    fields_under_root: true
+
+  # --------------------------------------------------------------
+  # NGINX
+  # --------------------------------------------------------------
+  - type: filestream
+    id: sistema-nginx
+    enabled: true
+    paths:
+      - /var/log/nginx/*.log
+      - /var/log/nginx/**/*.log
+    tags: ["sistema", "nginx", "web"]
+    fields:
+      log_category: "nginx"
+    fields_under_root: true
+
+  # --------------------------------------------------------------
+  # MONGODB
+  # --------------------------------------------------------------
+  - type: filestream
+    id: app-mongodb
+    enabled: true
+    paths:
+      - /var/log/mongodb/*.log
+    tags: ["app", "bbdd", "mongodb"]
+    fields:
+      log_category: "mongodb"
+      app_name: "mongodb"
+    fields_under_root: true
+
+  # --------------------------------------------------------------
+  # USER.LOG — logs de aplicaciones de usuario
+  # --------------------------------------------------------------
+  - type: filestream
+    id: sistema-userlog
+    enabled: true
+    paths:
+      - /var/log/user.log
+    tags: ["sistema", "user"]
+    fields:
+      log_category: "userlog"
     fields_under_root: true
 
   # --------------------------------------------------------------
