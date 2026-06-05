@@ -89,6 +89,7 @@ curl -s -u elastic:${ELASTIC_PASSWORD} \
 ```
 
 **Si ves esto** — los campos están anidados, `fields_under_root` no funciona:
+
 ```json
 "fields": {
   "log_category": "apitest",
@@ -97,6 +98,7 @@ curl -s -u elastic:${ELASTIC_PASSWORD} \
 ```
 
 **Si ves esto** — los campos están al nivel raíz, correcto:
+
 ```json
 "log_category": "apitest",
 "app_name": "apitest"
@@ -132,10 +134,13 @@ del host. Si la condición de Docker en Logstash usa `"docker" in [tags]` en lug
 de `[input][type] == "container"`, todo caerá en el índice Docker.
 
 Verificar en `logstash.conf` que la condición de Docker es:
+
 ```ruby
 if [input][type] == "container" {
 ```
+
 Y no:
+
 ```ruby
 if "docker" in [tags] {    # ← incorrecto
 ```
@@ -358,12 +363,14 @@ Acciones por orden de impacto:
 1. **Aplicar ILM** para borrar índices antiguos automáticamente — ver [05-OPERACIONES.md](./05-OPERACIONES.md)
 2. **Borrar índices antiguos manualmente** si la situación es urgente
 3. **Reducir réplicas a 0** en single-node (las réplicas doblan el espacio sin beneficio):
+
 ```bash
 curl -u elastic:${ELASTIC_PASSWORD} \
   -X PUT "http://localhost:9200/_settings" \
   -H "Content-Type: application/json" \
   -d '{"index.number_of_replicas": 0}'
 ```
+
 4. **Reducir retención** — acortar los plazos en las políticas ILM
 
 ---
@@ -394,3 +401,78 @@ curl -s -u elastic:${ELASTIC_PASSWORD} \
 
 Si se crearon índices nuevos después de crear el Data View, puede que no reconozca
 los nuevos campos. En Kibana: Stack Management → Data Views → seleccionar el Data View → Refresh.
+
+---
+
+## Kibana no encuentra campos tras crear nuevos índices
+
+Cuando se crean índices con campos nuevos después de haber creado el Data View,
+Kibana puede no reconocerlos en Discover.
+
+**Solución:** refrescar el Data View.
+Stack Management → Data Views → seleccionar el Data View → botón **Refresh**.
+
+---
+
+## Logstash procesa eventos pero no aparecen en Kibana
+
+```bash
+# Verificar que Logstash escribe en Elasticsearch
+curl -s http://localhost:9600/_node/stats/pipeline | python3 -m json.tool | grep -A5 '"events"'
+# Comprobar que events.out sube — si events.in sube pero events.out no, hay error en el output
+
+# Ver errores de escritura en Elasticsearch
+docker compose logs logstash | grep -i "error\|rejected\|timeout" | tail -20
+```
+
+Causa frecuente: mapping conflict — un campo llega con un tipo distinto al que
+ya tiene el índice (por ejemplo `response` como string cuando ya estaba como integer).
+
+```bash
+# Ver el mapping actual del índice
+curl -s -u elastic:${ELASTIC_PASSWORD} \
+  "http://localhost:9200/sistema-*/_mapping?pretty" | grep -A3 '"response"'
+```
+
+Si hay conflicto, la solución más limpia es borrar el índice afectado y dejar
+que se recree con el mapping correcto:
+
+```bash
+curl -u elastic:${ELASTIC_PASSWORD} -X DELETE "http://localhost:9200/sistema-2026.06.05"
+```
+
+---
+
+## Filebeat envía pero Logstash no recibe
+
+```bash
+# Ver si Logstash tiene el puerto 5044 abierto
+docker compose exec logstash netstat -tlnp | grep 5044
+
+# Ver conexiones activas al puerto
+ss -tn | grep 5044
+
+# Ver si hay eventos entrando en el pipeline
+curl -s http://localhost:9600/_node/stats/pipeline | python3 -m json.tool | grep '"in"'
+```
+
+Si el puerto no aparece, Logstash no arrancó el input de Beats correctamente.
+Revisar `logstash.conf` por errores de sintaxis y reiniciar.
+
+---
+
+## El stack funcionaba y dejó de funcionar tras actualizar
+
+Causa más común: versiones incompatibles entre Filebeat y el stack.
+Filebeat, Logstash, Elasticsearch y Kibana deben estar en la misma versión major (8.x).
+
+```bash
+# Ver versión del stack
+docker compose exec elasticsearch elasticsearch --version
+docker compose exec logstash logstash --version
+
+# Ver versión de Filebeat en cada cliente
+filebeat version
+```
+
+Si hay desajuste, actualizar el componente más antiguo para igualar versiones.

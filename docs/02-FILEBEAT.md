@@ -178,7 +178,7 @@ Para minimizar este riesgo en logs críticos, editar `/etc/logrotate.d/rsyslog`
 y añadir `delaycompress` para que no comprima hasta la siguiente rotación,
 dando más margen a Filebeat:
 
-```
+```cmd
 /var/log/syslog {
     rotate 7
     daily
@@ -256,12 +256,14 @@ Los `tags` y `fields` son los que permiten filtrar en Kibana. Hay que usarlos
 con criterio desde el principio porque cambiarlos después implica reindexar.
 
 **`tags`** — para categorías rápidas, van como array. Útil para agrupar:
+
 ```yaml
 tags: ["app", "sentry-project"]
 # En Kibana: tags : "app"  o  tags : "sentry-project"
 ```
 
 **`fields`** — para metadatos estructurados con valor concreto:
+
 ```yaml
 fields:
   log_category: "apitest"    # define el índice en Logstash

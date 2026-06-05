@@ -4,7 +4,7 @@
 
 ## El sistema en una imagen
 
-```
+```cmd
 SERVIDORES CLIENTE                      SERVIDOR CENTRAL (Docker)
 ──────────────────────                  ─────────────────────────────────────
 
@@ -29,6 +29,7 @@ SERVIDORES CLIENTE                      SERVIDOR CENTRAL (Docker)
 ## Qué hace cada pieza
 
 ### Filebeat
+
 Agente ligero instalado como paquete del sistema en cada servidor cliente.
 Su único trabajo es leer ficheros de log y enviarlos a Logstash.
 
@@ -39,6 +40,7 @@ Su único trabajo es leer ficheros de log y enviarlos a Logstash.
 - Envía los eventos al servidor ELK central por el puerto 5044
 
 ### Logstash
+
 Corre en Docker en el servidor central. Es el cerebro del pipeline.
 
 - **Recibe** eventos de todos los agentes Filebeat de la red
@@ -48,6 +50,7 @@ Corre en Docker en el servidor central. Es el cerebro del pipeline.
 - **Escribe** el resultado en Elasticsearch
 
 ### Elasticsearch
+
 Base de datos de búsqueda donde se almacenan los logs.
 
 - Organiza los datos en **índices** por tipo y fecha
@@ -55,6 +58,7 @@ Base de datos de búsqueda donde se almacenan los logs.
 - Gestiona la retención mediante políticas ILM
 
 ### Kibana
+
 Interfaz web para trabajar con los logs.
 
 - **Discover**: buscar y explorar logs en tiempo real

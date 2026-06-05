@@ -7,7 +7,7 @@ a qué índice van, los parsea y los enriquece antes de escribirlos.
 
 ## Fichero de configuración
 
-```
+```cmd
 ~/docker-elk-secure/logstash/pipeline/logstash.conf
 ```
 
@@ -22,7 +22,7 @@ docker compose logs -f logstash   # verificar que arranca sin errores
 
 ## Estructura del pipeline
 
-```
+```cmd
 INPUT           FILTER                          OUTPUT
 ──────    ──────────────────────────────    ──────────────────
 :5044  ──► normalización de campos      ──► Elasticsearch
@@ -56,7 +56,7 @@ Los campos `@metadata` son internos — no se guardan en Elasticsearch.
 
 ### Lógica de enrutamiento (por orden de prioridad)
 
-```
+```cmd
 1. input.type == "container"           →  docker-YYYY.MM.dd
 2. app_name presente (cualquier valor) →  apps-{app_name}-YYYY.MM.dd
 3. log_category en lista de sistema    →  sistema-YYYY.MM.dd
@@ -123,7 +123,7 @@ Solo se aplica a ciertos tipos de log — el resto pasa sin parsear.
 
 Detecta patrones de autenticación y extrae campos útiles para alertas de seguridad:
 
-```
+```cmd
 # Login SSH fallido → src_ip, ssh_user
 Mar 15 10:23:41 sentry sshd[1234]: Failed password for root from 45.33.32.156
 
@@ -141,7 +141,7 @@ El tag `_grokparsefailure` está desactivado para no ensuciar los datos.
 
 ### Apache — Combined Log Format
 
-```
+```cmd
 192.168.1.1 - frank [10/Oct/2026:13:55:36 +0000] "GET /index.html HTTP/1.1" 200 2326
 ```
 
@@ -262,3 +262,79 @@ docker compose logs logstash | grep -i "error\|warn\|exception" | tail -20
 curl -s -u elastic:${ELASTIC_PASSWORD} \
   "http://localhost:9200/_cat/indices?v&s=index" | grep "$(date +%Y.%m.%d)"
 ```
+
+---
+
+## Tabla de enrutamiento completa
+
+| Condición evaluada en orden | Índice resultante |
+|---|---|
+| `input.type == "container"` | `docker-YYYY.MM.dd` |
+| `app_name` presente (cualquier valor) | `apps-{app_name}-YYYY.MM.dd` |
+| `log_category` = syslog, kernel, auth, cron, paquetes, vmware, apache, php-fpm | `sistema-YYYY.MM.dd` |
+| Cualquier otra cosa | `logstash-YYYY.MM.dd` |
+
+El orden importa — la primera condición que se cumple gana y las demás no se evalúan.
+
+---
+
+## Troubleshooting de Logstash
+
+### Índices creados como logstash-* en lugar de apps-* o sistema-*
+
+Los campos `app_name` o `log_category` no llegan al nivel raíz.
+Diagnóstico:
+
+```bash
+curl -s -u elastic:${ELASTIC_PASSWORD} \
+  "http://localhost:9200/logstash-*/_search?pretty&size=1" \
+  | grep -E '"app_name"|"log_category"|"fields"'
+```
+
+Si ves `"fields": { "app_name": "..." }` en lugar de `"app_name": "..."` directamente,
+falta `fields_under_root: true` en el bloque del input en `filebeat.yml`.
+
+### Error de autenticación con Elasticsearch (401)
+
+```bash
+# Ver si la variable llega al contenedor
+docker compose exec logstash env | grep ELASTIC_PASSWORD
+```
+
+Si no aparece, falta en `docker-compose.yml`:
+
+```yaml
+services:
+  logstash:
+    environment:
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+```
+
+Aplicar con `docker compose up -d --force-recreate logstash`.
+
+### Logstash arranca antes que Elasticsearch
+
+```bash
+docker compose restart logstash
+```
+
+Reintentará la conexión automáticamente en cuanto Elasticsearch esté listo.
+
+### Ver exactamente qué eventos procesa Logstash
+
+Añadir temporalmente al bloque `output` en `logstash.conf` — solo para debug,
+nunca dejar en producción:
+
+```ruby
+output {
+  stdout { codec => rubydebug }
+  elasticsearch { ... }
+}
+```
+
+```bash
+docker compose restart logstash
+docker compose logs -f logstash
+```
+
+Quitar el `stdout` y reiniciar de nuevo cuando termines.

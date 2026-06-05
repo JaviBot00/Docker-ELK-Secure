@@ -109,21 +109,25 @@ server_name : "SENTRY" and severity : "error" and not log_category : "docker"
 ### Casos de uso habituales
 
 **Ver todos los errores de producción de hoy:**
+
 - Data View: `apps-*,sistema-*`
 - KQL: `environment : "production" and severity : "error"`
 - Rango: Last 24 hours
 
 **Investigar un incidente a una hora concreta:**
+
 - Rango temporal → personalizado, ventana del incidente ± 30 minutos
 - KQL: `server_name : "servidor-afectado"`
 - Ordenar por `@timestamp` ascendente para ver la secuencia de eventos
 
 **Ver intentos de login SSH fallidos:**
+
 - Data View: `sistema-*`
 - KQL: `log_category : "auth" and message : "Failed password"`
 - Columnas: `src_ip`, `ssh_user`, `host.name`, `@timestamp`
 
 **Monitorizar una app durante un deploy:**
+
 - Data View: `apps-nombreapp-*`
 - KQL: `severity : "error" or severity : "critical"`
 - Activar **auto-refresh** (arriba derecha) cada 10 segundos
@@ -143,6 +147,7 @@ Esta es una decisión importante. No hay una respuesta universal.
 ### Usar filtros KQL (lo que tenemos ahora)
 
 Mejor cuando:
+
 - Pocos servidores (menos de 10-15)
 - Quieres comparar servidores entre sí en el mismo dashboard
 - Los servidores tienen volúmenes similares
@@ -156,6 +161,7 @@ environment : "production" and severity : "error"
 ### Separar por índice
 
 Mejor cuando:
+
 - **Volúmenes muy distintos** entre servidores — un servidor con 10M logs/día
   no debería compartir índice con uno de 10K. Las búsquedas del pequeño se penalizan.
 - **Retención distinta** — producción 90 días, staging 15 días. Las políticas ILM
@@ -239,6 +245,7 @@ Para ver actividad relativa entre servidores.
 
 - Tipo: **Elasticsearch query**
 - Query:
+
 ```json
 {
   "bool": {
@@ -249,6 +256,7 @@ Para ver actividad relativa entre servidores.
   }
 }
 ```
+
 - Threshold: más de 5 en 10 minutos
 - Acción: email o Slack webhook
 
@@ -265,6 +273,7 @@ Si un servidor está caído o Filebeat falló, el flujo de logs se corta.
 
 - Tipo: **Elasticsearch query**
 - Query:
+
 ```json
 {
   "bool": {
@@ -275,6 +284,7 @@ Si un servidor está caído o Filebeat falló, el flujo de logs se corta.
   }
 }
 ```
+
 - Threshold: más de 20 en 5 minutos
 - Acción: email urgente o PagerDuty
 
@@ -292,3 +302,34 @@ Si un servidor está caído o Filebeat falló, el flujo de logs se corta.
 | Políticas de retención ILM | Stack Management → Index Lifecycle Policies |
 | Búsquedas guardadas | Stack Management → Saved Objects |
 | Mappings y campos de un índice | Stack Management → Index Management → índice → Mappings |
+
+---
+
+## Tabla completa de campos disponibles en Discover
+
+Todos los campos que genera este stack. Aparecen en el panel izquierdo
+de Discover y se pueden añadir como columnas en la tabla.
+
+| Campo | Origen | Qué contiene |
+|---|---|---|
+| `@timestamp` | Filebeat | Fecha y hora del log |
+| `message` | Filebeat | Contenido del log en texto |
+| `host.name` | Filebeat | Hostname del servidor cliente |
+| `server_name` | filebeat.yml | Nombre personalizado del servidor |
+| `environment` | filebeat.yml | production / staging / development |
+| `location` | filebeat.yml | Zona, datacenter, proveedor cloud |
+| `log_category` | filebeat.yml | Tipo: auth, syslog, nginx, apitest... |
+| `app_name` | filebeat.yml | Nombre de la app (define el índice destino) |
+| `tags` | filebeat.yml | Array de etiquetas: ["app","sentry-project"] |
+| `input.type` | Filebeat | filestream / container |
+| `severity` | Logstash | critical / error / warning / info |
+| `log.file.path` | Filebeat | Ruta del fichero de log en el cliente |
+| `container.name` | Filebeat | Nombre del contenedor (solo inputs Docker) |
+| `container.image.name` | Filebeat | Imagen del contenedor Docker |
+| `src_ip` | Logstash | IP origen en logs SSH (grok sobre auth.log) |
+| `ssh_user` | Logstash | Usuario en intentos SSH |
+| `sudo_user` | Logstash | Usuario que ejecutó sudo |
+| `sudo_command` | Logstash | Comando ejecutado con sudo |
+| `clientip` | Logstash | IP cliente en Apache access.log |
+| `response` | Logstash | Código HTTP en Apache access.log (integer) |
+| `request` | Logstash | Método + path en Apache access.log |
